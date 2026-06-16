@@ -6,6 +6,9 @@ on:
     branches:
       - "**"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     strategy:
@@ -28,3 +31,4 @@ jobs:
           bindings: geode-sdk/bindings
           bindings-ref: main
           target: ${{ matrix.config.target }}
+
