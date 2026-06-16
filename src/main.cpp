@@ -1,100 +1,79 @@
-/**
- * Include the Geode headers.
- */
 #include <Geode/Geode.hpp>
+#include <Geode/modify/PlayLayer.hpp>
 
-/**
- * Brings cocos2d and all Geode namespaces to the current scope.
- */
 using namespace geode::prelude;
 
-/**
- * `$modify` lets you extend and modify GD's classes.
- * To hook a function in Geode, simply $modify the class
- * and write a new function definition with the signature of
- * the function you want to hook.
- *
- * Here we use the overloaded `$modify` macro to set our own class name,
- * so that we can use it for button callbacks.
- *
- * Notice the header being included, you *must* include the header for
- * the class you are modifying, or you will get a compile error.
- *
- * Another way you could do this is like this:
- *
- * struct MyMenuLayer : Modify<MyMenuLayer, MenuLayer> {};
- */
-#include <Geode/modify/MenuLayer.hpp>
-class $modify(MyMenuLayer, MenuLayer) {
-	/**
-	 * Typically classes in GD are initialized using the `init` function, (though not always!),
-	 * so here we use it to add our own button to the bottom menu.
-	 *
-	 * Note that for all hooks, your signature has to *match exactly*,
-	 * `void init()` would not place a hook!
-	*/
-	bool init() {
-		/**
-		 * We call the original init function so that the
-		 * original class is properly initialized.
-		 */
-		if (!MenuLayer::init()) {
-			return false;
-		}
+class $modify(PlayLayer) {
+    bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
+        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
-		/**
-		 * You can use methods from the `geode::log` namespace to log messages to the console,
-		 * being useful for debugging and such. See this page for more info about logging:
-		 * https://docs.geode-sdk.org/tutorials/logging
-		*/
-		log::debug("Hello from my MenuLayer::init hook! This layer has {} children.", this->getChildrenCount());
+        // 1. VISUAL GRIEF LIMPÍSSIMO
+        if (this->m_background) this->m_background->setColor({15, 0, 0});
+        if (this->m_groundLayer) this->m_groundLayer->setColor({5, 0, 0});
 
-		/**
-		 * See this page for more info about buttons
-		 * https://docs.geode-sdk.org/tutorials/buttons
-		*/
-		auto myButton = CCMenuItemSpriteExtra::create(
-			CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
-			this,
-			/**
-			 * Here we use the name we set earlier for our modify class.
-			*/
-			menu_selector(MyMenuLayer::onMyButton)
-		);
+        auto winSize = CCDirector::sharedDirector()->getWinSize();
+        auto redFilter = CCLayerColor::create({150, 0, 0, 50}); // Filtro vermelho suave
+        redFilter->setZOrder(100); 
+        this->addChild(redFilter);
 
-		/**
-		 * Here we access the `bottom-menu` node by its ID, and add our button to it.
-		 * Node IDs are a Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/nodetree
-		*/
-		auto menu = this->getChildByID("bottom-menu");
-		menu->addChild(myButton);
+        // Vetor para guardar os objetos novos e adicionar depois (evita bugs na fase)
+        std::vector<GameObject*> novosObjetos;
 
-		/**
-		 * The `_spr` string literal operator just prefixes the string with
-		 * your mod id followed by a slash. This is good practice for setting your own node ids.
-		*/
-		myButton->setID("my-button"_spr);
+        // 2. ADICIONANDO NOVOS OBSTÁCULOS BONITINHOS
+        if (this->m_objects) {
+            for (int i = 0; i < this->m_objects->count(); i++) {
+                auto obj = static_cast<GameObject*>(this->m_objects->objectAtIndex(i));
+                if (obj) {
+                    
+                    // Pinta os objetos originais para manter o tema
+                    if (obj->m_objectType == GameObjectType::Hazard) {
+                        obj->setColor({255, 30, 30}); 
+                    } else {
+                        obj->setColor({40, 10, 10});
+                    }
 
-		/**
-		 * We update the layout of the menu to ensure that our button is properly placed.
-		 * This is yet another Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/layouts
-		*/
-		menu->updateLayout();
+                    // Tática 1: Alargar os saltos perfeitos
+                    // Se achar um espinho (ID 8 é o espinho padrão do jogo)
+                    if (obj->m_objectID == 8) { 
+                        // A cada 2 espinhos, nós criamos um novo para fechar o espaço
+                        if (i % 2 == 0) {
+                            auto espinhoExtra = GameObject::createWithKey(8); 
+                            if (espinhoExtra) {
+                                // Coloca o novo espinho 30 pixels à frente do original
+                                espinhoExtra->setPosition({obj->getPositionX() + 30.0f, obj->getPositionY()});
+                                espinhoExtra->setRotation(obj->getRotation());
+                                espinhoExtra->setColor({255, 30, 30});
+                                novosObjetos.push_back(espinhoExtra);
+                            }
+                        }
+                    }
+                    
+                    // Tática 2: Teto baixo com espinhos invertidos
+                    // Adiciona um espinho flutuante acima dos blocos sólidos para dificultar o pulo
+                    if (obj->m_objectType == GameObjectType::Solid) {
+                         // Adiciona apenas em alguns blocos para não lotar a tela (a cada 4 blocos)
+                         if (i % 4 == 0) {
+                             auto tetoEspinho = GameObject::createWithKey(8);
+                             if (tetoEspinho) {
+                                 // Coloca 90 pixels acima do bloco, de cabeça para baixo
+                                 tetoEspinho->setPosition({obj->getPositionX(), obj->getPositionY() + 90.0f});
+                                 tetoEspinho->setRotation(180.0f); // Inverte o espinho
+                                 tetoEspinho->setColor({255, 30, 30});
+                                 novosObjetos.push_back(tetoEspinho);
+                             }
+                         }
+                    }
+                }
+            }
+        }
 
-		/**
-		 * We return `true` to indicate that the class was properly initialized.
-		 */
-		return true;
-	}
+        // 3. INSERE OS OBJETOS NOVOS NA FASE
+        // Agora nós pegamos todos os espinhos extras que criamos e injetamos na fase real
+        for (auto novoObj : novosObjetos) {
+            this->m_objectLayer->addChild(novoObj);
+            this->m_objects->addObject(novoObj); // Garante que a colisão funcione
+        }
 
-	/**
-	 * This is the callback function for the button we created earlier.
-	 * The signature for button callbacks must always be the same,
-	 * return type `void` and taking a `CCObject*`.
-	*/
-	void onMyButton(CCObject*) {
-		FLAlertLayer::create("Geode", "Hello from my custom mod!", "OK")->show();
-	}
+        return true;
+    }
 };
