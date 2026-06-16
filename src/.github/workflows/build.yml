@@ -12,9 +12,6 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - name: Android32
-            os: ubuntu-latest
-            target: Android32
           - name: Android64
             os: ubuntu-latest
             target: Android64
@@ -31,4 +28,3 @@ jobs:
           bindings: geode-sdk/bindings
           bindings-ref: main
           target: ${{ matrix.config.target }}
-
