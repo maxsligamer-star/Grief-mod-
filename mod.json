@@ -4,11 +4,9 @@
   "id": "max.grief-gd",
   "name": "Grief GD",
   "developer": "Max",
-  "description": "Transforma o GD na tematica infernal do Grief.",
+  "description": "Deixa todos os leveis no estilo Grief e mais difíceis com novos obstáculos.",
   "resources": {
     "spritesheets": {},
-    "files": [
-      "resources/*.png"
-    ]
+    "files": []
   }
 }
